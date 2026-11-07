@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Mini Fortnite V3</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#1e5fd8" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Luckiest+Guy&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body data-mode="fight">
+<canvas id="game"></canvas>
+
+<div id="hud" class="hidden">
+  <!-- top left: stats + kill feed -->
+  <div id="stats">
+    <div class="stat"><span class="ic">👤</span><b id="aliveTxt">25</b></div>
+    <div class="stat"><span class="ic">💀</span><b id="killTxt">0</b></div>
+    <div class="stat storm"><span class="ic">🌀</span><span id="stormTxt"></span></div>
+  </div>
+  <div id="feed"></div>
+
+  <!-- top right: minimap + mode bar + materials -->
+  <div id="topRight">
+    <canvas id="minimap" class="hud-touch" width="150" height="150"></canvas>
+    <div id="modeBar" class="hud-touch">
+      <button data-mode="fight">⚔ FIGHT</button>
+      <button data-mode="build">🧱 BUILD</button>
+      <button data-mode="edit">✏ EDIT</button>
+    </div>
+    <div id="mats">
+      <div class="m wood"><i></i><b id="mat_wood">0</b></div>
+      <div class="m brick"><i></i><b id="mat_brick">0</b></div>
+      <div class="m metal"><i></i><b id="mat_metal">0</b></div>
+    </div>
+  </div>
+
+  <!-- bottom centre: health + hotbar -->
+  <div id="bottom">
+    <div id="bars">
+      <div class="bar sh"><div id="shFill"></div><span id="shNum">0</span></div>
+      <div class="bar hp"><div id="hpFill"></div><span id="hpNum">100</span></div>
+    </div>
+    <div id="hotbar" class="hud-touch"></div>
+  </div>
+
+  <!-- fight controls (touch) -->
+  <div id="fireZone"><span>FIRE</span><small>drag to aim • tap = quick shot</small></div>
+  <button id="pickBtn" class="hud-touch round">⛏</button>
+  <button id="actBtn" class="hud-touch hidden">HOLD TO OPEN</button>
+
+  <!-- build bar (shows in BUILD mode) -->
+  <div id="buildBar" class="hud-touch">
+    <button id="rotBtn" class="round">↻<small>90°</small></button>
+    <button class="mat wood" data-mat="wood">WOOD<b>0</b></button>
+    <button class="mat brick" data-mat="brick">BRICK<b>0</b></button>
+    <button class="mat metal" data-mat="metal">METAL<b>0</b></button>
+    <button id="placeBtn" class="round ok">✓</button>
+  </div>
+  <div id="editHint">TAP ONE OF THE 3 PARTS OF YOUR WALL TO EDIT IT</div>
+
+  <button id="jumpBtn" class="hud-touch hidden">JUMP!</button>
+  <div id="glideHint">STEER WITH THE LEFT STICK</div>
+  <div id="banner"></div>
+  <div id="toast"></div>
+
+  <!-- spectate bar -->
+  <div id="specBar" class="hud-touch hidden">
+    <button id="specPrev" class="round">◀</button>
+    <div class="who"><small>SPECTATING</small><b id="specName">—</b><span id="specKills"></span></div>
+    <button id="specNext" class="round">▶</button>
+    <button id="specAgainBtn" class="yellow">PLAY AGAIN</button>
+  </div>
+</div>
+
+<!-- big map -->
+<div id="bigMap" class="hidden hud-touch"><canvas id="bigMapCanvas"></canvas><small>TAP TO CLOSE</small></div>
+
+<!-- death screen -->
+<div id="deathScreen" class="overlay hidden hud-touch">
+  <div class="card">
+    <div class="place" id="deathPlace">#2</div>
+    <h2>ELIMINATED</h2>
+    <p id="deathBy"></p>
+    <p id="deathKills"></p>
+    <div class="row">
+      <button id="againBtn" class="yellow big">PLAY AGAIN</button>
+      <button id="specBtn" class="blue big">SPECTATE 👀</button>
+    </div>
+  </div>
+</div>
+
+<!-- win screen -->
+<div id="winScreen" class="overlay hidden hud-touch">
+  <div class="card">
+    <h1 id="winTitle">#1 VICTORY ROYALE</h1>
+    <p id="winSub"></p>
+    <button id="winAgainBtn" class="yellow big">PLAY AGAIN</button>
+  </div>
+</div>
+
+<!-- main menu -->
+<div id="menu" class="overlay hud-touch">
+  <div class="sky"></div>
+  <div class="card menuCard">
+    <div class="logo">MINI<br/>FORTNITE<span class="v">V3</span></div>
+    <p class="tag">25 PLAYERS • BUILD • EDIT • SURVIVE THE STORM</p>
+    <button id="playBtn" class="yellow huge">PLAY</button>
+    <div class="help">
+      <div><b>📱 MOBILE</b> Left stick: move • Right side: drag to aim &amp; shoot, tap for a quick shot •
+        Mode bar (top right): FIGHT / BUILD / EDIT • Build: tap to place a wall preview, tap it again (or ✓) to build, ↻ rotates 90° •
+        Edit: tap one of the 3 parts of your wall</div>
+      <div><b>⌨ PC</b> WASD move • Mouse aim/shoot • 1–5 slots • F pickaxe • Q build • G edit • R reload/rotate •
+        Z/X/C wood/brick/metal • hold E open chest • Space jump • M map</div>
+    </div>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/util.js"></script>
+<script src="js/build.js"></script>
+<script src="js/world.js"></script>
+<script src="js/fighter.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/items.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/match.js"></script>
+<script src="js/input.js"></script>
+<script src="js/render.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
