@@ -78,6 +78,7 @@ MF.Render = (() => {
     drawTerrain(v);
     if (G.mode === 'build' && G.player.alive && !G.spectating) drawGrid(v);
     drawPads();
+    if (G.duo) { drawVans(v); drawCards(v); }
     drawChests(v);
     drawLoot(v);
     drawShadows(v);
@@ -188,6 +189,63 @@ MF.Render = (() => {
       ctx.strokeStyle = '#5a3a10'; ctx.lineWidth = 2; ctx.strokeRect(c.x - 18, c.y - 12, 36, 24);
       ctx.fillStyle = '#fff3b0'; ctx.fillRect(c.x - 3, c.y - 5, 6, 7);
       if (P.openChest === c && P.openProg > 0) progressRing(c.x, c.y, 26, P.openProg / MF.Items.CHEST_TIME, '#ffe23d');
+    }
+  }
+
+  // ---------- duo: reboot vans + reboot cards ----------
+  function drawVans(v) {
+    const G = MF.G, open = MF.Squad.rebootOpen();
+    for (const van of G.vans) {
+      if (van.x < v.x0 - 80 || van.x > v.x1 + 80 || van.y < v.y0 - 80 || van.y > v.y1 + 80) continue;
+      const ready = open && van.cd <= 0;
+      const x = van.x, y = van.y;
+      // pad
+      ctx.fillStyle = ready ? 'rgba(63,180,255,0.22)' : 'rgba(120,130,145,0.2)';
+      ctx.beginPath(); ctx.arc(x, y, MF.Squad.S.VAN_R, 0, 7); ctx.fill();
+      ctx.strokeStyle = ready ? 'rgba(120,210,255,0.7)' : 'rgba(160,170,185,0.5)'; ctx.lineWidth = 3; ctx.setLineDash([10, 8]);
+      ctx.stroke(); ctx.setLineDash([]);
+      // van body
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'; roundRect(x - 40, y - 18, 86, 44, 10); ctx.fill();
+      ctx.fillStyle = ready ? '#e9eef5' : '#9aa3ad'; roundRect(x - 44, y - 24, 88, 44, 10); ctx.fill();
+      ctx.strokeStyle = '#3d4a5c'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.fillStyle = ready ? '#2f8dff' : '#5d6670'; ctx.fillRect(x - 44, y + 4, 88, 7);
+      ctx.fillStyle = '#9fd4ff'; ctx.fillRect(x + 22, y - 18, 16, 20);
+      // satellite dish
+      ctx.strokeStyle = '#3d4a5c'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(x - 14, y - 22); ctx.lineTo(x - 14, y - 36); ctx.stroke();
+      ctx.fillStyle = ready ? '#59c3ff' : '#7a8594';
+      ctx.beginPath(); ctx.arc(x - 14, y - 40, 11, Math.PI, Math.PI * 2); ctx.fill(); ctx.stroke();
+      if (ready) {
+        const p = (G.time * 0.8) % 1;
+        ctx.strokeStyle = `rgba(89,195,255,${1 - p})`; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(x - 14, y - 44, 8 + p * 26, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
+      }
+      ctx.font = 'bold 16px "Bebas Neue", Impact, sans-serif'; ctx.textAlign = 'center';
+      const label = !open ? 'REBOOT OFFLINE' : van.cd > 0 ? 'REBOOT ' + U.fmtTime(van.cd) : 'REBOOT VAN';
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.strokeText(label, x, y + 42);
+      ctx.fillStyle = ready ? '#9fdcff' : '#d0d6dd'; ctx.fillText(label, x, y + 42);
+      if (van.prog > 0) progressRing(x, y, 52, van.prog / MF.Squad.S.REBOOT_TIME, '#59c3ff');
+    }
+  }
+  function drawCards(v) {
+    const G = MF.G, watch = MF.Match.camTarget();
+    for (const c of G.cards) {
+      if (c.x < v.x0 || c.x > v.x1 || c.y < v.y0 || c.y > v.y1) continue;
+      const mine = watch && c.team === watch.team;
+      const bob = Math.sin(G.time * 3 + c.t) * 3;
+      ctx.fillStyle = mine ? 'rgba(89,195,255,0.3)' : 'rgba(200,200,220,0.18)';
+      ctx.beginPath(); ctx.arc(c.x, c.y, 22, 0, 7); ctx.fill();
+      ctx.save(); ctx.translate(c.x, c.y + bob); ctx.rotate(Math.sin(G.time * 2 + c.t) * 0.2);
+      ctx.fillStyle = mine ? '#2f8dff' : '#7a8594'; roundRect(-10, -14, 20, 28, 4); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('↻', 0, 5);
+      ctx.restore();
+      if (mine) {
+        ctx.font = 'bold 12px "Bebas Neue", Impact, sans-serif'; ctx.textAlign = 'center';
+        const t = `${c.f.name} • ${Math.ceil(c.expires - G.time)}s`;
+        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.strokeText(t, c.x, c.y - 24);
+        ctx.fillStyle = '#9fdcff'; ctx.fillText(t, c.x, c.y - 24);
+      }
     }
   }
 
@@ -335,17 +393,21 @@ MF.Render = (() => {
     // shadow
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
     ctx.beginPath(); ctx.ellipse(f.x + 4 + lift * 30, f.y + 6 + lift * 40, f.r * (1 - lift * 0.3), f.r * 0.75 * (1 - lift * 0.3), 0, 0, 7); ctx.fill();
+    const watch = MF.Match.camTarget();
+    const ally = G.duo && watch && f !== watch && f.team === watch.team;
+    if (f.down) { drawDowned(f, ally); return; }
     ctx.save();
     ctx.translate(f.x, f.y); ctx.scale(sc, sc);
 
     if (f.state === 'glide') {
       ctx.save(); ctx.rotate(f.aim + Math.PI / 2);
-      ctx.fillStyle = f.isBot ? '#ff6bd5' : '#ffe23d';
+      ctx.fillStyle = !f.isBot ? '#ffe23d' : ally ? '#59c3ff' : '#ff6bd5';
       ctx.beginPath(); ctx.moveTo(0, -36); ctx.lineTo(34, 8); ctx.lineTo(-34, 8); ctx.closePath(); ctx.fill();
       ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 2; ctx.stroke();
       ctx.restore();
     }
     if (!f.isBot) { ctx.strokeStyle = 'rgba(255,226,61,0.8)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, f.r + 6, 0, 7); ctx.stroke(); }
+    else if (ally) { ctx.strokeStyle = 'rgba(89,195,255,0.85)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, f.r + 6, 0, 7); ctx.stroke(); }
 
     ctx.save(); ctx.rotate(f.aim);
     // weapon / pickaxe
@@ -396,8 +458,8 @@ MF.Render = (() => {
       ctx.font = 'bold 12px "Bebas Neue", Impact, sans-serif'; ctx.textAlign = 'center';
       ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.7)';
       const ny = f.y - f.r * sc - 16;
-      ctx.strokeText(f.name, f.x, ny); ctx.fillStyle = G.spectating === f ? '#ffe23d' : '#ffffff'; ctx.fillText(f.name, f.x, ny);
-      if (G.time - f.lastHurtT < 3 || G.spectating === f) {
+      ctx.strokeText(f.name, f.x, ny); ctx.fillStyle = G.spectating === f ? '#ffe23d' : ally ? '#9fdcff' : '#ffffff'; ctx.fillText(f.name, f.x, ny);
+      if (G.time - f.lastHurtT < 3 || G.spectating === f || ally) {
         ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(f.x - 20, ny + 3, 40, 6);
         ctx.fillStyle = '#5be35b'; ctx.fillRect(f.x - 20, ny + 3, 40 * f.hp / 100, 3);
         ctx.fillStyle = '#4fb4ff'; ctx.fillRect(f.x - 20, ny + 6, 40 * f.shield / 100, 3);
@@ -405,9 +467,33 @@ MF.Render = (() => {
     }
   }
 
+  // Knocked: lying flat, red pulsing ring, bleed-out bar, revive progress
+  function drawDowned(f, ally) {
+    const G = MF.G;
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.beginPath(); ctx.ellipse(f.x + 3, f.y + 5, f.r * 1.2, f.r * 0.6, 0, 0, 7); ctx.fill();
+    const pulse = 0.5 + 0.5 * Math.sin(G.time * 6);
+    ctx.strokeStyle = `rgba(255,70,90,${0.45 + pulse * 0.45})`; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(f.x, f.y, f.r + 8 + pulse * 3, 0, 7); ctx.stroke();
+    ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(f.aim);
+    ctx.fillStyle = f.hurtFlash > 0 ? '#fff' : shade(f.color, -50);
+    ctx.beginPath(); ctx.ellipse(0, 0, f.r * 1.15, f.r * 0.75, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = shade(f.color, -90); ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#1b1b2b'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('x x', 6, 4);
+    ctx.restore();
+    if (f.reviveProg > 0) progressRing(f.x, f.y, f.r + 14, f.reviveProg / MF.Squad.S.REVIVE_TIME, '#59c3ff');
+    const ny = f.y - f.r - 18;
+    ctx.font = 'bold 12px "Bebas Neue", Impact, sans-serif'; ctx.textAlign = 'center';
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+    const label = (f.isBot ? f.name : 'YOU') + ' • KNOCKED';
+    ctx.strokeText(label, f.x, ny); ctx.fillStyle = ally || !f.isBot ? '#9fdcff' : '#ff8a8a'; ctx.fillText(label, f.x, ny);
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(f.x - 20, ny + 3, 40, 5);
+    ctx.fillStyle = '#ff4d4d'; ctx.fillRect(f.x - 20, ny + 3, 40 * Math.max(0, f.downHp) / 100, 5);
+  }
+
   function drawReticle() {
     const G = MF.G, P = G.player;
-    if (!P.alive || G.spectating || P.state !== 'ground' || G.mode !== 'fight') return;
+    if (!P.alive || P.down || G.spectating || P.state !== 'ground' || G.mode !== 'fight') return;
     const d = 115;
     const x = P.x + Math.cos(P.aim) * d, y = P.y + Math.sin(P.aim) * d;
     ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2; ctx.setLineDash([4, 8]);

@@ -22,6 +22,11 @@
     <div class="stat"><span class="ic">💀</span><b id="killTxt">0</b></div>
     <div class="stat storm"><span class="ic">🌀</span><span id="stormTxt"></span></div>
   </div>
+  <div id="team" class="hidden">
+    <div class="mtop"><b id="mateName">—</b><span id="mateState"></span></div>
+    <div class="mbar sh"><div id="mateSh"></div></div>
+    <div class="mbar hp"><div id="mateHp"></div></div>
+  </div>
   <div id="feed"></div>
 
   <!-- top right: minimap + mode bar + materials -->
@@ -61,6 +66,7 @@
     <button class="mat metal" data-mat="metal">METAL<b>0</b></button>
     <button id="placeBtn" class="round ok">✓</button>
   </div>
+  <div id="downHint"><b>KNOCKED!</b><span id="downTxt"></span><div class="dbar"><div id="downFill"></div></div></div>
   <div id="editHint">TAP ONE OF THE 3 PARTS OF YOUR WALL TO EDIT IT</div>
 
   <button id="jumpBtn" class="hud-touch hidden">JUMP!</button>
@@ -68,6 +74,7 @@
   <div id="banner"></div>
   <div id="toast"></div>
 
+  <div id="rebootInfo" class="hidden"></div>
   <!-- spectate bar -->
   <div id="specBar" class="hud-touch hidden">
     <button id="specPrev" class="round">◀</button>
@@ -84,12 +91,13 @@
 <div id="deathScreen" class="overlay hidden hud-touch">
   <div class="card">
     <div class="place" id="deathPlace">#2</div>
-    <h2>ELIMINATED</h2>
+    <h2 id="deathTitle">ELIMINATED</h2>
     <p id="deathBy"></p>
     <p id="deathKills"></p>
     <div class="row">
       <button id="againBtn" class="yellow big">PLAY AGAIN</button>
       <button id="specBtn" class="blue big">SPECTATE 👀</button>
+      <button id="menuBtn" class="blue big">MENU</button>
     </div>
   </div>
 </div>
@@ -99,7 +107,10 @@
   <div class="card">
     <h1 id="winTitle">#1 VICTORY ROYALE</h1>
     <p id="winSub"></p>
-    <button id="winAgainBtn" class="yellow big">PLAY AGAIN</button>
+    <div class="row">
+      <button id="winAgainBtn" class="yellow big">PLAY AGAIN</button>
+      <button id="winMenuBtn" class="blue big">MENU</button>
+    </div>
   </div>
 </div>
 
@@ -108,14 +119,19 @@
   <div class="sky"></div>
   <div class="card menuCard">
     <div class="logo">MINI<br/>FORTNITE<span class="v">V3</span></div>
-    <p class="tag">25 PLAYERS • BUILD • EDIT • SURVIVE THE STORM</p>
-    <button id="playBtn" class="yellow huge">PLAY</button>
+    <p class="tag">SOLO OR DUO • BUILD • EDIT • SURVIVE THE STORM</p>
+    <div class="row playRow">
+      <button id="playBtn" class="yellow huge">SOLO<small>25 players</small></button>
+      <button id="playDuoBtn" class="blue huge">DUO<small>13 teams • revive • reboot</small></button>
+    </div>
     <div class="help">
       <div><b>📱 MOBILE</b> Left stick: move • Right side: drag to aim &amp; shoot, tap for a quick shot •
         Mode bar (top right): FIGHT / BUILD / EDIT • Build: tap to place a wall preview, tap it again (or ✓) to build, ↻ rotates 90° •
         Edit: tap one of the 3 parts of your wall</div>
       <div><b>⌨ PC</b> WASD move • Mouse aim/shoot • 1–5 slots • F pickaxe • Q build • G edit • R reload/rotate •
         Z/X/C wood/brick/metal • hold E open chest • Space jump • M map</div>
+      <div><b>👥 DUO</b> At 0 HP you get KNOCKED — crawl to your teammate so they can hold to revive you •
+        Eliminated? Your teammate grabs your REBOOT CARD and holds it at a Reboot Van (blue on the map) to bring you back</div>
     </div>
   </div>
 </div>
@@ -128,6 +144,7 @@
 <script src="js/combat.js"></script>
 <script src="js/items.js"></script>
 <script src="js/ai.js"></script>
+<script src="js/squad.js"></script>
 <script src="js/match.js"></script>
 <script src="js/input.js"></script>
 <script src="js/render.js"></script>

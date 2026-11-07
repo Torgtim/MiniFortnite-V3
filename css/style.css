@@ -104,7 +104,7 @@ body.gliding #fireZone, body.gliding #pickBtn, body.gliding #buildBar { display:
 #glideHint { position: absolute; left: 50%; top: 22vh; transform: translateX(-50%); font-size: 20px; text-shadow: 0 2px 4px #000; display: none; }
 body.gliding #glideHint { display: block; }
 
-#banner { position: absolute; left: 50%; top: 24vh; transform: translateX(-50%) scale(0.6); font-family: var(--title); font-size: 34px; opacity: 0;
+#banner { position: absolute; left: 50%; top: 24vh; transform: translateX(-50%) scale(0.6); font-family: var(--title); font-size: min(34px, 4.4vw); opacity: 0;
           text-shadow: 0 3px 0 rgba(0,0,0,0.5), 0 0 18px rgba(0,0,0,0.4); white-space: nowrap; transition: opacity 0.25s, transform 0.25s; }
 #banner.pop { opacity: 1; transform: translateX(-50%) scale(1); }
 #toast { position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%); background: rgba(200, 30, 30, 0.85); padding: 4px 14px; border-radius: 6px;
@@ -175,4 +175,50 @@ body.gliding #glideHint { display: block; }
   .slot { width: 44px; height: 44px; }
   #modeBar button { font-size: 14px; padding: 6px 6px; }
   #feed { font-size: 12px; }
+}
+
+/* ---------- duo ---------- */
+.playRow { margin-top: 4px; }
+.huge small { display: block; font-family: var(--ui); font-size: 15px; letter-spacing: 1px; opacity: 0.8; margin-top: -2px; }
+#playBtn.huge, #playDuoBtn.huge { padding: 10px 44px; }
+#playDuoBtn.huge { box-shadow: 0 6px 0 #0b3a8f, 0 12px 26px rgba(0,0,0,0.4); }
+
+#team { position: absolute; left: 10px; top: 48px; width: 190px; background: var(--panel); border-radius: 8px; padding: 4px 8px 6px;
+        border-left: 4px solid #59c3ff; border-bottom: 3px solid rgba(0,0,0,0.35); }
+#team .mtop { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+#team b { font-size: 17px; font-weight: normal; color: #9fdcff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#team span { font-size: 13px; opacity: 0.85; white-space: nowrap; }
+#team .mbar { height: 6px; background: rgba(0,0,0,0.5); border-radius: 2px; margin-top: 2px; overflow: hidden; transform: skewX(-12deg); }
+#team .mbar div { height: 100%; }
+#team .mbar.hp div { background: #34c234; }
+#team .mbar.hp.downbar div { background: #ff4d4d; }
+#team .mbar.sh div { background: #2f8dff; }
+#team.down { border-left-color: #ff4d4d; animation: pulse 0.6s infinite alternate; }
+#team.down span { color: #ff8a8a; opacity: 1; }
+#team.card { border-left-color: #ffe23d; }
+#team.card span { color: var(--yellow); opacity: 1; }
+#team.out { opacity: 0.6; }
+body.duo #feed { top: 104px; }
+
+#downHint { position: absolute; left: 50%; top: 13vh; transform: translateX(-50%); display: none; flex-direction: column; align-items: center;
+            background: rgba(120, 10, 30, 0.75); padding: 6px 16px 8px; border-radius: 10px; min-width: 220px; }
+#downHint b { font-family: var(--title); font-weight: normal; font-size: 26px; color: #ff8a8a; line-height: 1; }
+#downHint span { font-size: 15px; margin: 2px 0 4px; }
+#downHint .dbar { width: 100%; height: 8px; background: rgba(0,0,0,0.5); border-radius: 3px; overflow: hidden; }
+#downHint .dbar div { height: 100%; background: linear-gradient(#ff8a8a, #d61f3c); }
+body.knocked #downHint { display: flex; }
+body.knocked #fireZone, body.knocked #pickBtn, body.knocked #hotbar, body.knocked #modeBar, body.knocked #buildBar, body.knocked #editHint { display: none !important; }
+
+#actBtn.team { background: linear-gradient(#8fd8ff, #2f8dff); color: #04204d; box-shadow: 0 3px 0 #0b3a8f; }
+#actBtn.info { background: rgba(60, 70, 90, 0.85); color: #fff; box-shadow: none; }
+
+#rebootInfo { position: absolute; left: 50%; top: 13vh; transform: translateX(-50%); background: rgba(47, 141, 255, 0.85);
+              padding: 5px 14px; border-radius: 8px; font-size: 17px; white-space: nowrap; max-width: 60vw; overflow: hidden; text-overflow: ellipsis; }
+.bar.hp.downbar div { background: linear-gradient(#ff8a8a, #d61f3c); }
+@media (max-height: 430px) {
+  #team { width: 160px; padding: 3px 7px 5px; }
+  #team b { font-size: 15px; }
+  body.duo #feed { top: 96px; }
+  #rebootInfo { top: 10vh; font-size: 15px; }
+  #downHint { top: 10vh; }
 }

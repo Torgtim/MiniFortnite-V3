@@ -6,6 +6,9 @@
 // WHAT to do; the "act" step runs every frame and does it.
 //
 // Modes: fight, chase, investigate, rotate, heal, loot, harvest, hunt
+// Duo modes: revive (teammate knocked), card (grab their reboot card),
+// reboot (carry it to a Reboot Van), regroup (stay near teammate).
+// Knocked bots crawl towards their teammate.
 // In fights bots: pick the right gun for the range, strafe, lead
 // their shots, build walls when shot, box up to heal, edit-peek
 // out of their own walls, and pickaxe through walls in their way.
@@ -43,7 +46,31 @@ MF.AI = (() => {
     const t = ((pt.x - bus.x0) * ax + (pt.y - bus.y0) * ay) / (ax * ax + ay * ay);
     b.jumpAt = U.clamp(t + U.rand(-0.12, 0.04), 0.08, 0.95);
   }
+  // Duo: both bots of a team land together; your teammate follows YOU
+  function planTeamDrops() {
+    for (const f of MF.G.fighters) {
+      if (!f.isBot || !f.mate) continue;
+      const m = f.mate;
+      if (!m.isBot) { f.brain.jumpAt = 99; f.brain.followPlayer = true; continue; }
+      if (m.id < f.id) {
+        f.brain.dropAt = { x: m.brain.dropAt.x + U.rand(-90, 90), y: m.brain.dropAt.y + U.rand(-90, 90) };
+        f.brain.jumpAt = m.brain.jumpAt + U.rand(0, 0.01);
+      }
+    }
+  }
+  function onRespawn(bot, van) {
+    const b = bot.brain;
+    b.mode = 'loot'; b.target = null; b.goal = null; b.breakIt = null; b.peek = null;
+    b.dropAt = { x: van.x + U.rand(-260, 260), y: van.y + U.rand(-260, 260) };
+    b.lootUntil = now() + MF.Squad.S.RESPAWN_GLIDE + U.rand(5, 9);
+  }
   function glideDir(bot) {
+    if (bot.brain.followPlayer && bot.mate && bot.mate.state === 'glide') {
+      const P = bot.mate, tx = P.x + 60, ty = P.y + 40;
+      const d = U.dist(bot.x, bot.y, tx, ty);
+      return d < 20 ? { x: 0, y: 0 } : { x: (tx - bot.x) / d, y: (ty - bot.y) / d };
+    }
+    if (bot.brain.followPlayer && bot.mate && bot.mate.state === 'ground') bot.brain.dropAt = { x: bot.mate.x + 70, y: bot.mate.y + 50 };
     const t = bot.brain.dropAt;
     const d = U.dist(bot.x, bot.y, t.x, t.y);
     if (d < 20) return { x: 0, y: 0 };
@@ -177,7 +204,7 @@ MF.AI = (() => {
     let best = null, bestScore = 1e9;
     const calm = t < b.lootUntil;   // freshly landed: loot first, fight only if pushed
     for (const o of MF.G.fighters) {
-      if (o === bot || !MF.F.isTargetable(o) || o.state === 'glide') continue;
+      if (!MF.F.isEnemy(bot, o) || !MF.F.isTargetable(o) || o.state === 'glide') continue;
       const d = U.dist(bot.x, bot.y, o.x, o.y);
       if (d > C.VISION) continue;
       if (calm && d > 170 && !(o === bot.lastHitBy && t - bot.lastHurtT < 3)) continue;
@@ -185,21 +212,27 @@ MF.AI = (() => {
       let sc = d;
       if (o === b.target) sc -= 220;
       if (o === bot.lastHitBy && t - bot.lastHurtT < 3) sc -= 320;
-      if (!o.isBot && b.huntPlayer) sc -= 120;
+      if (o.team === MF.G.player.team && b.huntPlayer) sc -= 120;
+      if (o.down) sc += d < 260 ? 60 : 280;                     // finish close knocks, else focus standing enemies
+      const m = bot.mate;
+      if (m && m.alive && ((o === m.lastVictim && t - m.lastDmgT < 4) || (o === m.lastHitBy && t - m.lastHurtT < 4))) sc -= 200;  // help my teammate
       if (sc < bestScore) { bestScore = sc; best = o; }
     }
     b.los = !!best;
     if (best) {
       if (b.target !== best) { b.firstSeenT = t; }
       b.target = best; b.seenT = t; b.lastSeen = { x: best.x, y: best.y };
-    } else if (bot.lastHitBy && bot.lastHitBy.alive && t - bot.lastHurtT < 1.5) {
+    } else if (bot.lastHitBy && bot.lastHitBy.alive && bot.lastHitBy.team !== bot.team && t - bot.lastHurtT < 1.5) {
       // shot by someone I can't see (behind builds): fight towards them
       const a = bot.lastHitBy;
       if (b.target !== a) b.firstSeenT = t;
       b.target = a; b.seenT = t; b.lastSeen = { x: a.x, y: a.y };
     }
 
-    // 2) decide mode
+    // 2) duo duties come first unless an enemy is right in my face
+    if (squadThink(bot, t)) return;
+
+    // 3) decide mode
     const inStorm = !MF.Match.inSafe(bot.x, bot.y, 0);
     const hasHeal = healSlot(bot) >= 0;
     // No gun yet? Loot first — only pickaxe-fight if someone is right on top of me
@@ -215,6 +248,7 @@ MF.AI = (() => {
       const recentNoise = MF.G.noises.filter((n) => n.src !== bot && t - n.t < 4 && U.dist(n.x, n.y, bot.x, bot.y) < C.HEAR);
       if (inStorm || MF.Match.shouldRotate(bot)) { b.mode = 'rotate'; b.goal = MF.Match.safePoint(bot); }
       else if (hasHeal && MF.F.effHp(bot) < b.P.healAt) b.mode = 'heal';
+      else if (tooFarFromMate(bot)) { b.mode = 'regroup'; b.goal = { x: bot.mate.x, y: bot.mate.y }; }
       else if (needsLoot(bot) && (b.goal = findLoot(bot))) b.mode = 'loot';
       else if (recentNoise.length) { b.mode = 'investigate'; const n = recentNoise[recentNoise.length - 1]; b.goal = { x: n.x + U.rand(-80, 80), y: n.y + U.rand(-80, 80) }; }
       else if (totalMats(bot) < 120 && (b.goal = findHarvest(bot))) b.mode = 'harvest';
@@ -223,6 +257,51 @@ MF.AI = (() => {
         b.mode = 'hunt';
       }
     }
+  }
+
+  // ---------- duo ----------
+  function squadThink(bot, t) {
+    const b = bot.brain, m = bot.mate;
+    if (!MF.G.duo || !m) return false;
+    const tg = b.target;
+    const threat = tg && tg.alive && !tg.down && t - b.seenT < 0.6 && U.dist(bot.x, bot.y, tg.x, tg.y) < 460;
+    if (threat) return false;
+    if (m.alive && m.down) { setMode(b, 'revive'); b.goal = m; return true; }
+    if (!m.alive) {
+      const card = MF.Squad.cardOf(m);
+      if (card) { setMode(b, 'card'); b.goal = card; return true; }
+      if (bot.cards.length && MF.Squad.rebootOpen()) {
+        const v = MF.Squad.nearestVan(bot);
+        if (v) { setMode(b, 'reboot'); b.goal = v; return true; }
+      }
+    }
+    return false;
+  }
+  function setMode(b, mode) { if (b.mode !== mode) b.boxed = false; b.mode = mode; }
+  function tooFarFromMate(bot) {
+    const m = bot.mate;
+    if (!MF.G.duo || !m || !MF.Squad.standing(m) || m.state !== 'ground') return false;
+    const leash = m.isBot ? 750 : 380;
+    return U.dist(bot.x, bot.y, m.x, m.y) > leash;
+  }
+
+  function crawl(bot, dt) {
+    const m = bot.mate, b = bot.brain;
+    bot.pickaxe = true;
+    if (!MF.Match.inSafe(bot.x, bot.y, 0)) { const g = b.goal && b.mode === 'crawl' ? b.goal : (b.goal = MF.Match.safePoint(bot)); b.mode = 'crawl'; moveTo(bot, g.x, g.y, dt); return; }
+    if (MF.Squad.standing(m) && U.dist(bot.x, bot.y, m.x, m.y) > 30) moveTo(bot, m.x, m.y, dt);
+    else bot.vx = bot.vy = 0;
+  }
+
+  function reviveMate(bot, dt) {
+    const b = bot.brain, m = bot.mate;
+    if (!m || !m.alive || !m.down) { b.think = 0; return; }
+    const d = U.dist(bot.x, bot.y, m.x, m.y);
+    if (d > MF.Squad.S.REVIVE_R - 14) { moveTo(bot, m.x, m.y, dt); holdGun(bot); return; }
+    bot.vx = bot.vy = 0;
+    // builders / careful bots wall up before reviving if someone shot at us recently
+    if (!b.boxed && now() - b.seenT < 8 && totalMats(bot) >= 40 && b.pers !== 'aggressive') { boxUp(bot); b.boxed = true; }
+    MF.Squad.holdInteract(bot, true, dt);
   }
 
   function needsLoot(bot) {
@@ -255,9 +334,11 @@ MF.AI = (() => {
   }
   function huntGoal(bot) {
     const b = bot.brain, P = MF.G.player;
+    // Your duo teammate sticks with you
+    if (b.followPlayer && MF.Squad.standing(P) && P.state === 'ground') return { x: P.x + U.rand(-140, 140), y: P.y + U.rand(-140, 140) };
     // Some bots go looking for YOU, the others hunt each other
-    if (b.huntPlayer && P && P.alive && P.state === 'ground') return { x: P.x + U.rand(-350, 350), y: P.y + U.rand(-350, 350) };
-    const others = MF.G.fighters.filter((o) => o !== bot && o.alive && o.state === 'ground');
+    if (b.huntPlayer && P && P.alive && P.team !== bot.team && P.state === 'ground') return { x: P.x + U.rand(-350, 350), y: P.y + U.rand(-350, 350) };
+    const others = MF.G.fighters.filter((o) => MF.F.isEnemy(bot, o) && o.alive && o.state === 'ground');
     if (others.length) {
       others.sort((a, c) => U.dist(bot.x, bot.y, a.x, a.y) - U.dist(bot.x, bot.y, c.x, c.y));
       const o = others[Math.min(others.length - 1, U.randi(0, 2))];
@@ -271,6 +352,7 @@ MF.AI = (() => {
     if (!bot.alive || bot.state !== 'ground') { if (bot.brain) bot.brain.peek = updatePeek(bot, dt); return; }
     const b = bot.brain;
     if (b.lootUntil == null) b.lootUntil = now() + U.rand(14, 32);
+    if (bot.down) { if (b.peek) b.peek = updatePeek(bot, 99); crawl(bot, dt); return; }
     b.buildCd -= dt;
     b.think -= dt;
     if (b.think <= 0) { b.think = U.rand(0.2, 0.32); think(bot); }
@@ -288,6 +370,20 @@ MF.AI = (() => {
         break;
       }
       case 'heal': healUp(bot, dt); break;
+      case 'revive': reviveMate(bot, dt); break;
+      case 'card': {
+        const c = b.goal;
+        if (!c || !MF.G.cards.includes(c)) { b.think = 0; break; }
+        moveTo(bot, c.x, c.y, dt); holdGun(bot);
+        break;
+      }
+      case 'reboot': {
+        const v = b.goal;
+        if (!v || !bot.cards.length) { b.think = 0; break; }
+        if (U.dist(bot.x, bot.y, v.x, v.y) > MF.Squad.S.VAN_R - 24) { moveTo(bot, v.x, v.y, dt); holdGun(bot); }
+        else { bot.vx = bot.vy = 0; MF.Squad.holdInteract(bot, true, dt); }
+        break;
+      }
       case 'loot': {
         const g = b.goal;
         if (!g || (g.chest && g.chest.opened) || (g.loot && !MF.G.loot.includes(g.loot))) { b.think = 0; break; }
@@ -413,5 +509,5 @@ MF.AI = (() => {
     return null;
   }
 
-  return { init, planDrop, glideDir, update };
+  return { init, planDrop, planTeamDrops, onRespawn, glideDir, update };
 })();

@@ -16,7 +16,7 @@ MF.Combat = (() => {
   // Returns true when a shot went out
   function fire(f) {
     const w = MF.F.activeWeapon(f);
-    if (!w || f.fireCd > 0 || f.reloadT > 0 || f.state !== 'ground') return false;
+    if (!w || f.fireCd > 0 || f.reloadT > 0 || f.state !== 'ground' || f.down) return false;
     if (w.ammo <= 0) { startReload(f); return false; }
     const def = MF.WEAPONS[w.id];
     const mult = MF.RARITIES[w.rarity].mult;
@@ -72,6 +72,7 @@ MF.Combat = (() => {
     if (p && (!best || p.t < best.t)) best = { kind: 'prop', t: p.t, p: p.p };
     for (const f of MF.G.fighters) {
       if (f === owner || !MF.F.isTargetable(f)) continue;
+      if (owner && owner.team === f.team) continue;        // shots pass through teammates
       if (f.state === 'glide' && f.z > 0.25) continue;   // too high up in the sky
       const t = U.segCircle(x0, y0, x1, y1, f.x, f.y, f.r);
       if (t >= 0 && (!best || t < best.t)) best = { kind: 'fighter', t, f };
@@ -124,13 +125,13 @@ MF.Combat = (() => {
 
   // ---------- pickaxe ----------
   function swing(f) {
-    if (f.fireCd > 0 || f.state !== 'ground') return false;
+    if (f.fireCd > 0 || f.state !== 'ground' || f.down) return false;
     const P = C.PICKAXE;
     f.fireCd = P.rate; f.swingT = 0.22;
     // 1) fighters in a short arc in front
     let target = null, bestD = 1e9;
     for (const o of MF.G.fighters) {
-      if (o === f || !MF.F.isTargetable(o) || o.state !== 'ground') continue;
+      if (!MF.F.isEnemy(f, o) || !MF.F.isTargetable(o) || o.state !== 'ground') continue;
       const d = U.dist(f.x, f.y, o.x, o.y);
       if (d > f.r + P.reach + o.r) continue;
       const a = Math.atan2(o.y - f.y, o.x - f.x);

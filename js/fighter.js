@@ -6,9 +6,9 @@ MF.F = (() => {
   const U = MF.U, C = MF.CFG;
   let nextId = 1;
 
-  function create({ name, isBot, color }) {
+  function create({ name, isBot, color, team = 0 }) {
     return {
-      id: nextId++, name, isBot, color,
+      id: nextId++, name, isBot, color, team,
       x: 0, y: 0, r: C.PLAYER_R, vx: 0, vy: 0,
       hp: 100, shield: 0, alive: true,
       state: 'bus',               // bus | glide | ground | air | grapple | dead
@@ -22,6 +22,9 @@ MF.F = (() => {
       kills: 0, placement: 0, killedBy: null,
       lastHitBy: null, lastHurtT: -99, hurtFlash: 0,
       brain: null,
+      // duo
+      mate: null, down: false, downHp: 0, knockedBy: null, reviveProg: 0, reviveBy: null, reviveSeen: -9,
+      cards: [], lastVictim: null, lastDmgT: -99,
     };
   }
 
@@ -66,6 +69,7 @@ MF.F = (() => {
     let s = C.RUN_SPEED;
     if (MF.World.isWater(f.x, f.y)) s *= C.WATER_SLOW;
     if (f.use) s *= C.USE_SLOW;
+    if (f.down) s *= MF.Squad.S.DOWN_SPEED;
     return s;
   }
 
@@ -118,9 +122,20 @@ MF.F = (() => {
   // ---------- damage ----------
   function hurt(f, dmg, attacker, source) {
     if (!f.alive || f.state === 'bus') return;
+    if (attacker && attacker !== f && attacker.team === f.team) return;   // no friendly fire
     dmg = Math.max(0, dmg);
     // Bots hit each other a bit softer so the lobby doesn't empty before you get to fight
     if (attacker && attacker.isBot && f.isBot) dmg *= 0.6;
+    if (attacker && attacker !== f) { attacker.lastVictim = f; attacker.lastDmgT = MF.G.time; }
+
+    // knocked: damage goes to the bleed-out pool, no shield
+    if (f.down) {
+      f.downHp -= dmg;
+      f.lastHurtT = MF.G.time; f.hurtFlash = 0.15;
+      if (MF.Render && (attacker === MF.Match.camTarget() || f === MF.Match.camTarget())) MF.Render.dmgNum(f.x, f.y - 20, dmg, '#ff8a8a');
+      if (f.downHp <= 0) MF.Match.kill(f, attacker && attacker !== f ? attacker : f.knockedBy, source);
+      return;
+    }
     let toShield = Math.min(f.shield, dmg);
     f.shield -= toShield;
     const toHp = dmg - toShield;
@@ -134,7 +149,11 @@ MF.F = (() => {
         if (toHp > 0) MF.Render.dmgNum(f.x + 10, f.y - 26, toHp, '#ffffff');
       }
     }
-    if (f.hp <= 0) { f.hp = 0; MF.Match.kill(f, attacker, source); }
+    if (f.hp <= 0) {
+      f.hp = 0;
+      if (MF.Squad.canKnock(f)) MF.Squad.knock(f, attacker, source);
+      else MF.Match.kill(f, attacker, source);
+    }
   }
 
   function heal(f, amount, cap) { if (f.hp < cap) f.hp = Math.min(cap, f.hp + amount); }
@@ -181,9 +200,10 @@ MF.F = (() => {
   }
 
   const isTargetable = (f) => f.alive && f.state !== 'bus';
+  const isEnemy = (a, b) => a !== b && a.team !== b.team;
   const effHp = (f) => f.hp + f.shield;
 
   return { create, blockedAt, move, unstick, speedOf, activeSlot, activeWeapon, selectSlot, selectPickaxe,
-           give, dropAll, hurt, heal, addShield, update, launch, isTargetable, effHp,
+           give, dropAll, hurt, heal, addShield, update, launch, isTargetable, isEnemy, effHp,
            reset() { nextId = 1; } };
 })();

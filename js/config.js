@@ -10,7 +10,8 @@ MF.CFG = {
   TILE: 48,             // terrain tile size
   CELL: 96,             // build grid cell size (walls sit on cell edges)
   WALL_T: 10,           // wall thickness
-  BOTS: 24,             // bots per match (+ you = 25)
+  BOTS: 24,             // solo: bots per match (+ you = 25)
+  DUO_BOTS: 25,         // duo: your bot teammate + 12 bot duos = 13 teams
 
   PLAYER_R: 16,
   RUN_SPEED: 235,       // px / s

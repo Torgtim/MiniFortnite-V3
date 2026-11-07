@@ -6,16 +6,21 @@ MF.UI = (() => {
   const U = MF.U, C = MF.CFG;
   const $ = (id) => document.getElementById(id);
   let mini, miniCtx, mapImg = null, bigMapOpen = false, miniT = 0, hotSig = '', bannerT = 0, toastT = 0;
+  let lastDuo = false;
+  try { lastDuo = localStorage.getItem('mf3_duo') === '1'; } catch (e) {}
 
   function init() {
     mini = $('minimap'); miniCtx = mini.getContext('2d');
     mini.addEventListener('click', toggleMap);
     $('bigMap').addEventListener('click', toggleMap);
 
-    $('playBtn').addEventListener('click', startGame);
-    $('againBtn').addEventListener('click', startGame);
-    $('specAgainBtn').addEventListener('click', startGame);
-    $('winAgainBtn').addEventListener('click', startGame);
+    $('playBtn').addEventListener('click', () => startGame(false));
+    $('playDuoBtn').addEventListener('click', () => startGame(true));
+    $('againBtn').addEventListener('click', () => startGame());
+    $('specAgainBtn').addEventListener('click', () => startGame());
+    $('winAgainBtn').addEventListener('click', () => startGame());
+    $('menuBtn').addEventListener('click', toMenu);
+    $('winMenuBtn').addEventListener('click', toMenu);
     $('specBtn').addEventListener('click', () => {
       MF.Match.spectate(MF.G.player.killedBy);
       hide('deathScreen'); show('specBar'); refreshSpec();
@@ -57,11 +62,20 @@ MF.UI = (() => {
     document.querySelectorAll('.hud-touch').forEach((el) => el.addEventListener('pointerdown', (e) => e.stopPropagation()));
   }
 
-  function startGame() {
-    ['menu', 'deathScreen', 'specBar', 'winScreen'].forEach(hide);
+  // duo: true/false picks the mode, undefined = same mode as last time
+  function startGame(duo) {
+    if (typeof duo === 'boolean') lastDuo = duo;
+    try { localStorage.setItem('mf3_duo', lastDuo ? '1' : '0'); } catch (e) {}
+    ['menu', 'deathScreen', 'specBar', 'winScreen', 'rebootInfo'].forEach(hide);
     MF.Input.releaseAll();
     MF.Render.reset();
-    MF.Match.start();
+    MF.Match.start({ duo: lastDuo });
+  }
+  function toMenu() {
+    ['deathScreen', 'specBar', 'winScreen', 'rebootInfo', 'hud'].forEach(hide);
+    MF.Input.releaseAll();
+    MF.G.phase = 'menu';
+    show('menu');
   }
 
   const show = (id) => $(id).classList.remove('hidden');
@@ -72,23 +86,44 @@ MF.UI = (() => {
     mapImg = MF.World.renderMinimap(300);
     hotSig = '';
     show('hud'); refreshMode();
-    banner('BOARD THE BATTLE BUS!', '#59c3ff');
+    document.body.classList.toggle('duo', MF.G.duo);
+    $('team').classList.toggle('hidden', !MF.G.duo);
+    banner(MF.G.duo ? 'DUOS! TEAM UP WITH ' + MF.G.player.mate.name.toUpperCase() : 'BOARD THE BATTLE BUS!', '#59c3ff');
   }
   function onJump() { banner('GLIDE TO A GOOD SPOT!', '#ffe23d'); }
   function onLand() {}
+  // Your run is over (solo death, or your whole duo is out)
   function onPlayerDeath(P) {
     MF.Input.releaseAll();
     $('deathPlace').textContent = '#' + P.placement;
+    $('deathTitle').textContent = MF.G.duo ? 'TEAM ELIMINATED' : 'ELIMINATED';
     $('deathBy').textContent = P.killedBy ? `Eliminated by ${P.killedBy.name}` : 'Eliminated by the Storm';
-    $('deathKills').textContent = `${P.kills} elimination${P.kills === 1 ? '' : 's'}`;
-    setTimeout(() => show('deathScreen'), 700);
+    const k = MF.G.duo && P.mate ? `${P.kills} elimination${P.kills === 1 ? '' : 's'} • ${P.mate.name}: ${P.mate.kills}` : `${P.kills} elimination${P.kills === 1 ? '' : 's'}`;
+    $('deathKills').textContent = k;
+    setTimeout(() => { if (!P.alive && !MF.G.winner) { hide('specBar'); hide('rebootInfo'); show('deathScreen'); } }, 700);
   }
-  function onWinner(w) {
-    const youWon = w === MF.G.player;
-    $('winTitle').textContent = youWon ? '#1 VICTORY ROYALE' : `${w.name.toUpperCase()} WON!`;
-    $('winSub').textContent = youWon ? `${MF.G.player.kills} eliminations — GG!` : `${w.name} got ${w.kills} eliminations`;
+  // Duo: you're out, but your teammate can still reboot you
+  function onPlayerWaiting(P) {
+    MF.Input.releaseAll();
+    MF.Input.setMode('fight');
+    show('specBar'); show('rebootInfo'); refreshSpec();
+    banner('YOUR TEAMMATE CAN REBOOT YOU!', '#59c3ff');
+  }
+  function onRebooted() {
+    ['deathScreen', 'specBar', 'rebootInfo'].forEach(hide);
+    MF.Input.releaseAll(); MF.Input.setMode('fight');
+    banner("YOU'RE BACK! GLIDE DOWN", '#59c3ff');
+  }
+  function onWinner(w, members = [w]) {
+    const G = MF.G, youWon = members.includes(G.player);
+    const names = members.map((f) => f.name).join(' & ');
+    $('winTitle').textContent = youWon ? '#1 VICTORY ROYALE' : `${names.toUpperCase()} WON!`;
+    const kills = members.reduce((n, f) => n + f.kills, 0);
+    $('winSub').textContent = youWon
+      ? (G.duo ? `You: ${G.player.kills} • ${G.player.mate.name}: ${G.player.mate.kills} eliminations — GG!` : `${G.player.kills} eliminations — GG!`)
+      : `${names} got ${kills} eliminations`;
     $('winScreen').classList.toggle('you', youWon);
-    setTimeout(() => { hide('deathScreen'); hide('specBar'); show('winScreen'); }, 1200);
+    setTimeout(() => { hide('deathScreen'); hide('specBar'); hide('rebootInfo'); show('winScreen'); }, 1200);
   }
 
   function banner(text, color = '#fff') {
@@ -145,9 +180,11 @@ MF.UI = (() => {
 
     // health
     const watch = MF.Match.camTarget() || P;
-    $('hpFill').style.width = Math.max(0, watch.hp) + '%';
+    const hpv = watch.down ? Math.max(0, watch.downHp) : watch.hp;
+    $('hpFill').style.width = Math.max(0, hpv) + '%';
+    $('hpFill').parentElement.classList.toggle('downbar', !!watch.down);
     $('shFill').style.width = Math.max(0, watch.shield) + '%';
-    $('hpNum').textContent = Math.ceil(watch.hp);
+    $('hpNum').textContent = Math.ceil(hpv);
     $('shNum').textContent = Math.ceil(watch.shield);
 
     // materials
@@ -158,20 +195,31 @@ MF.UI = (() => {
     }
 
     renderHotbar(watch);
+    if (G.duo) updateTeam(P);
 
     // context buttons
     document.body.classList.toggle('dead', !P.alive);
+    document.body.classList.toggle('knocked', P.alive && P.down);
     document.body.classList.toggle('inbus', P.state === 'bus');
     document.body.classList.toggle('gliding', P.state === 'glide');
     const act = $('actBtn');
-    const chest = P.alive && P.state === 'ground' ? MF.Items.nearestChest(P) : null;
-    if (chest) { act.dataset.kind = 'open'; act.textContent = P.openProg > 0 ? 'OPENING…' : 'HOLD TO OPEN'; act.classList.remove('hidden'); }
+    const sq = MF.Squad.option(P);
+    const chest = P.alive && !P.down && P.state === 'ground' ? MF.Items.nearestChest(P) : null;
+    act.classList.toggle('info', !!sq && sq.kind === 'info');
+    act.classList.toggle('team', !!sq);
+    if (sq) { act.dataset.kind = sq.kind; act.textContent = sq.label; act.classList.remove('hidden'); }
+    else if (chest) { act.dataset.kind = 'open'; act.textContent = P.openProg > 0 ? 'OPENING…' : 'HOLD TO OPEN'; act.classList.remove('hidden'); }
     else if (P.alive && P.swapLoot) {
       act.dataset.kind = 'swap';
       const inst = P.swapLoot.inst;
       act.textContent = 'SWAP: ' + (inst.type === 'weapon' ? MF.WEAPONS[inst.id].short : MF.ITEMS[inst.id].name);
       act.classList.remove('hidden');
     } else act.classList.add('hidden');
+    if (P.alive && P.down) {
+      $('downFill').style.width = Math.max(0, P.downHp) + '%';
+      $('downTxt').textContent = P.reviveProg > 0 ? `${P.reviveBy ? P.reviveBy.name : ''} IS REVIVING YOU…`
+        : (MF.Squad.standing(P.mate) ? `CRAWL TO ${P.mate.name.toUpperCase()}` : '');
+    }
     $('jumpBtn').classList.toggle('hidden', !(P.state === 'bus' && G.bus.t > 0.03));
 
     if (G.spectating) refreshSpec();
@@ -179,6 +227,38 @@ MF.UI = (() => {
     // minimap at ~8 fps
     miniT -= dt;
     if (miniT <= 0) { miniT = 0.12; drawMap(mini, false); if (bigMapOpen) drawMap($('bigMapCanvas'), true); }
+  }
+
+  function updateTeam(P) {
+    const m = P.mate;
+    if (!m) return;
+    $('mateName').textContent = m.name;
+    let st = '', cls = '';
+    if (!m.alive) {
+      const c = MF.Squad.cardStatus(m);
+      if (P.cards.includes(m)) { st = 'CARD: GO TO A REBOOT VAN!'; cls = 'card'; }
+      else if (c && c.where === 'ground') { st = `💀 GRAB CARD ${U.fmtTime(c.left)}`; cls = 'card'; }
+      else { st = '💀 OUT'; cls = 'out'; }
+    } else if (m.down) { st = 'KNOCKED!'; cls = 'down'; }
+    else if (m.state === 'bus') st = 'ON THE BUS';
+    else if (m.state === 'glide') st = 'GLIDING';
+    else st = Math.round(U.dist(P.x, P.y, m.x, m.y) / 10) + 'm';
+    $('mateState').textContent = st;
+    $('team').className = cls;
+    $('mateHp').style.width = (m.alive ? (m.down ? m.downHp : m.hp) : 0) + '%';
+    $('mateHp').parentElement.classList.toggle('downbar', m.down);
+    $('mateSh').style.width = (m.alive && !m.down ? m.shield : 0) + '%';
+
+    // waiting for a reboot
+    if (!P.alive) {
+      const c = MF.Squad.cardStatus(P);
+      let t = '';
+      if (!c || c.where === 'gone') t = 'Your reboot card is gone';
+      else if (c.where === 'ground') t = `${m.name} must grab your reboot card (${U.fmtTime(c.left)})`;
+      else if (!MF.Squad.rebootOpen()) t = 'Reboot vans are offline — cheer on ' + m.name + '!';
+      else t = `${m.name} has your card — heading to a Reboot Van!`;
+      $('rebootInfo').textContent = t;
+    }
   }
 
   function renderHotbar(f) {
@@ -229,14 +309,29 @@ MF.UI = (() => {
         g.fillStyle = '#fff'; g.fillText(p.name.toUpperCase(), p.x * k, p.y * k);
       }
     }
-    // you (and who you're spectating)
+    // duo: reboot vans + your team's cards
+    if (G.duo) {
+      const vr = big ? 7 : 4;
+      for (const v of G.vans) {
+        g.fillStyle = v.cd > 0 || !MF.Squad.rebootOpen() ? '#7a8594' : '#3fb4ff';
+        g.strokeStyle = '#fff'; g.lineWidth = 1.5;
+        g.fillRect(v.x * k - vr, v.y * k - vr * 0.7, vr * 2, vr * 1.4); g.strokeRect(v.x * k - vr, v.y * k - vr * 0.7, vr * 2, vr * 1.4);
+      }
+      for (const c of G.cards) {
+        if (c.team !== G.player.team) continue;
+        g.fillStyle = '#59c3ff'; g.beginPath(); g.arc(c.x * k, c.y * k, big ? 6 : 3.5, 0, 7); g.fill();
+        g.strokeStyle = '#fff'; g.stroke();
+      }
+    }
+    // you, your teammate (and who you're spectating)
     const marks = [G.player];
-    if (G.spectating) marks.push(G.spectating);
+    if (G.duo && G.player.mate) marks.push(G.player.mate);
+    if (G.spectating && !marks.includes(G.spectating)) marks.push(G.spectating);
     for (const f of marks) {
       if (!f || (!f.alive && f !== G.player)) continue;
       const x = f.x * k, y = f.y * k, r = big ? 8 : 5;
       g.save(); g.translate(x, y); g.rotate(f.aim);
-      g.fillStyle = f === G.player ? '#ffe23d' : '#ff6bd5';
+      g.fillStyle = f === G.player ? '#ffe23d' : (f.team === G.player.team ? '#59c3ff' : '#ff6bd5');
       g.strokeStyle = '#111'; g.lineWidth = 1.5;
       g.beginPath(); g.moveTo(r * 1.4, 0); g.lineTo(-r, -r); g.lineTo(-r * 0.5, 0); g.lineTo(-r, r); g.closePath(); g.fill(); g.stroke();
       g.restore();
@@ -245,5 +340,5 @@ MF.UI = (() => {
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-  return { init, onMatchStart, onJump, onLand, onPlayerDeath, onWinner, banner, toast, refreshMode, toggleMap, setSwap, update, startGame };
+  return { init, onMatchStart, onJump, onLand, onPlayerDeath, onPlayerWaiting, onRebooted, onWinner, banner, toast, refreshMode, toggleMap, setSwap, update, startGame };
 })();

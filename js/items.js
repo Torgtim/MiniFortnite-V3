@@ -10,7 +10,7 @@ MF.Items = (() => {
   // Called while the "fire" input is held and the active slot is an item.
   function useActive(f) {
     const s = MF.F.activeSlot(f);
-    if (!s || s.type !== 'item' || f.state !== 'ground' || f.fireCd > 0) return false;
+    if (!s || s.type !== 'item' || f.state !== 'ground' || f.fireCd > 0 || f.down) return false;
     const def = MF.ITEMS[s.id];
 
     if (def.kind === 'heal' || def.kind === 'shield') {
@@ -58,7 +58,7 @@ MF.Items = (() => {
     const u = f.use;
     if (!u) return;
     const s = f.slots[u.slot];
-    if (f.pickaxe || f.active !== u.slot || !s || s.id !== u.id || f.state !== 'ground') { f.use = null; return; }
+    if (f.pickaxe || f.active !== u.slot || !s || s.id !== u.id || f.state !== 'ground' || f.down) { f.use = null; return; }
     u.t += dt;
     if (u.t < u.dur) return;
     const def = MF.ITEMS[u.id];
@@ -99,7 +99,7 @@ MF.Items = (() => {
   // Call every frame with whether "interact" is held
   function holdOpen(f, holding, dt) {
     const c = nearestChest(f);
-    if (!c || !holding || f.state !== 'ground') { f.openProg = 0; f.openChest = null; return null; }
+    if (!c || !holding || f.state !== 'ground' || f.down) { f.openProg = 0; f.openChest = null; return null; }
     if (f.openChest !== c) { f.openChest = c; f.openProg = 0; }
     f.openProg += dt;
     if (f.openProg >= CHEST_TIME) {
@@ -126,7 +126,7 @@ MF.Items = (() => {
 
   // Walk over loot: take it if there is room. Returns the loot we could NOT take (for the swap button).
   function autoPickup(f) {
-    if (f.state !== 'ground') return null;
+    if (f.state !== 'ground' || f.down) return null;
     let blocked = null;
     for (const l of [...MF.G.loot]) {
       if (U.dist(f.x, f.y, l.x, l.y) > PICK_R + f.r) continue;

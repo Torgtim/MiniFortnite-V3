@@ -74,7 +74,7 @@ MF.Input = (() => {
     if (!t.kind && moved < 14 && dur < 400) tap(t.sx, t.sy);
   }
 
-  const isPlaying = () => MF.G.phase !== 'menu' && MF.G.player && MF.G.player.alive && !MF.G.spectating;
+  const isPlaying = () => MF.G.phase !== 'menu' && MF.G.player && MF.G.player.alive && !MF.G.player.down && !MF.G.spectating;
 
   function tap(sx, sy) {
     if (!isPlaying()) return;
@@ -88,8 +88,8 @@ MF.Input = (() => {
     const P = MF.G.player;
     let best = null, bd = 700;
     for (const o of MF.G.fighters) {
-      if (o === P || !MF.F.isTargetable(o) || o.state === 'glide') continue;
-      const d = U.dist(P.x, P.y, o.x, o.y);
+      if (!MF.F.isEnemy(P, o) || !MF.F.isTargetable(o) || o.state === 'glide') continue;
+      const d = U.dist(P.x, P.y, o.x, o.y) + (o.down ? 150 : 0);
       if (d < bd && !MF.Build.ray(P.x, P.y, o.x, o.y)) { bd = d; best = o; }
     }
     if (best) P.aim = Math.atan2(best.y - P.y, best.x - P.x);
@@ -106,11 +106,12 @@ MF.Input = (() => {
     if (k === ' ') { e.preventDefault(); if (P.state === 'bus') MF.Match.jump(P); }
     if (k === 'm') MF.UI.toggleMap();
     if (!P.alive) return;
+    if (k === 'e') interactHeld = true;
+    if (P.down) return;
     if (k >= '1' && k <= '5') { MF.F.selectSlot(P, +k - 1); setMode('fight'); }
     if (k === 'f') { MF.F.selectPickaxe(P); setMode('fight'); }
     if (k === 'q') setMode(G.mode === 'build' ? 'fight' : 'build');
     if (k === 'g') setMode(G.mode === 'edit' ? 'fight' : 'edit');
-    if (k === 'e') interactHeld = true;
     if (k === 'r') { if (G.mode === 'build') rotate(); else MF.Combat.startReload(P); }
     if (k === 'z') setMat('wood');
     if (k === 'x') setMat('brick');
@@ -198,8 +199,11 @@ MF.Input = (() => {
 
     if (P.state !== 'ground') { MF.UI.setSwap(null); return; }
 
+    // duo: holding interact next to a knocked teammate / at a Reboot Van
+    const busy = MF.Squad.holdInteract(P, interactHeld, dt);
+
     // move
-    const mv = moveVector();
+    const mv = busy ? { x: 0, y: 0 } : moveVector();
     const sp = MF.F.speedOf(P);
     const ox = P.x, oy = P.y;
     MF.F.move(P, mv.x * sp * dt, mv.y * sp * dt);
@@ -221,6 +225,7 @@ MF.Input = (() => {
       P.aim = Math.atan2(mv.y, mv.x);
     }
     if (tapFireT > 0) firing = true;
+    if (P.down || busy) firing = false;
 
     // act
     if (firing && MF.G.mode === 'fight') {
@@ -231,7 +236,7 @@ MF.Input = (() => {
     }
 
     // chests + loot
-    MF.Items.holdOpen(P, interactHeld, dt);
+    MF.Items.holdOpen(P, interactHeld && !busy, dt);
     MF.UI.setSwap(MF.Items.autoPickup(P));
     MF.Items.update(P, dt);
   }

@@ -5,6 +5,11 @@ A mobile-first 2D battle royale made by **Spakkraft**. The game is built around 
 **Play:** https://torgtim.github.io/MiniFortnite-V3/
 
 ## Features
+- **SOLO or DUO.** Solo is 25 players. Duo is you plus a bot teammate against 12 bot duos.
+  - **Knocked.** If you hit 0 HP while your teammate is still standing, you go down instead of dying. You crawl and bleed out unless your teammate **holds to revive** you.
+  - **Reboot.** When you're eliminated you drop a **reboot card**. Your teammate picks it up and holds it at a **Reboot Van** (blue on the map) to bring you back with a pistol and some wood. The vans shut off after the 4th storm circle.
+  - When the last standing member of a team goes down, the whole team is out.
+  - Bot duos drop together, help each other in fights, revive each other and bring each other's cards to the vans. Your teammate follows you.
 - **Battle Bus.** It flies across the island. Jump when you want, then glide to where you want to land.
 - **Three modes in the corner bar.**
   - **FIGHT:** shoot your gun, or use the pickaxe (20 damage up close; it also harvests materials from trees, rocks, cars and *other players' builds*).
@@ -31,6 +36,7 @@ A mobile-first 2D battle royale made by **Spakkraft**. The game is built around 
 | Open chest | Hold the button | Hold E |
 | Jump from bus | JUMP! | Space |
 | Map | Tap the minimap | M |
+| Revive / reboot (duo) | Hold the blue button | Hold E |
 
 ## Code layout
 Plain JavaScript with no build step. Every file adds one module to the shared `MF` namespace.
@@ -44,7 +50,8 @@ Plain JavaScript with no build step. Every file adds one module to the shared `M
 | `js/fighter.js` | Movement, inventory and damage, shared by the player and the bots |
 | `js/combat.js` | Guns, bullets, explosions, pickaxe and throwables |
 | `js/items.js` | Heals, shields, mobility items, launch pads, chests and pickups |
-| `js/ai.js` | Bot brains |
+| `js/ai.js` | Bot brains (including duo: revive, reboot, regroup) |
+| `js/squad.js` | Duo mode: teams, knocked, revive, reboot cards and Reboot Vans |
 | `js/match.js` | Battle bus, gliding, storm, eliminations, victory and spectating |
 | `js/input.js` | Touch sticks, taps, keyboard and mouse |
 | `js/render.js` | Everything drawn on the canvas |
