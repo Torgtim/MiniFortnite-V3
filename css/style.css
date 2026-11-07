@@ -222,3 +222,10 @@ body.knocked #fireZone, body.knocked #pickBtn, body.knocked #hotbar, body.knocke
   #rebootInfo { top: 10vh; font-size: 15px; }
   #downHint { top: 10vh; }
 }
+
+/* Bebas Neue has a very narrow space glyph: widen word gaps for UI text */
+* { word-spacing: 0.22em; }      /* per element, so it scales with each font size */
+.help, .help div { word-spacing: normal; }
+/* menu: centre when it fits, scroll from the top when it doesn't (short phones) */
+#menu { align-items: flex-start; }
+#menu .menuCard { margin: auto 0; }
