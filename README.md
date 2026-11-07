@@ -1,4 +1,5 @@
 # Mini-Fortnite V3
+Made by Claude (whit my promts)
 
 A mobile-first 2D battle royale made by **Spakkraft**. The game is built around Fortnite's core loop: drop from the battle bus, loot, build, edit, and outlast 24 smart bots before the storm closes in.
 
