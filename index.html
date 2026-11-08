@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Luckiest+Guy&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="css/style.css?v=3.2" />
+<link rel="stylesheet" href="css/style.css?v=3.3" />
 </head>
 <body data-mode="fight">
 <canvas id="game"></canvas>
@@ -124,31 +124,60 @@
       <button id="playBtn" class="yellow huge">SOLO<small>25 players</small></button>
       <button id="playDuoBtn" class="blue huge">DUO<small>13 teams • revive • reboot</small></button>
     </div>
+    <button id="settingsBtn" class="setBtn">⚙ SETTINGS</button>
     <div class="help">
       <div><b>📱 MOBILE</b> Left stick: move • Right side: drag to aim &amp; shoot, tap for a quick shot •
         Mode bar (top right): FIGHT / BUILD / EDIT • Build: tap to place a wall preview, tap it again (or ✓) to build, ↻ rotates 90° •
         Edit: tap one of the 3 parts of your wall</div>
       <div><b>⌨ PC</b> WASD move • Mouse aim/shoot • 1–5 slots • F pickaxe • Q build • G edit • R reload/rotate •
-        Z/X/C wood/brick/metal • hold E open chest • Space jump • M map</div>
+        Z/X/C wood/brick/metal • hold E open chest • Space jump • M map (change keys in ⚙ Settings)</div>
       <div><b>👥 DUO</b> At 0 HP you get KNOCKED — crawl to your teammate so they can hold to revive you •
         Eliminated? Your teammate grabs your REBOOT CARD and holds it at a Reboot Van (blue on the map) to bring you back</div>
     </div>
   </div>
 </div>
 
-<script src="js/config.js?v=3.2"></script>
-<script src="js/util.js?v=3.2"></script>
-<script src="js/build.js?v=3.2"></script>
-<script src="js/world.js?v=3.2"></script>
-<script src="js/fighter.js?v=3.2"></script>
-<script src="js/combat.js?v=3.2"></script>
-<script src="js/items.js?v=3.2"></script>
-<script src="js/ai.js?v=3.2"></script>
-<script src="js/squad.js?v=3.2"></script>
-<script src="js/match.js?v=3.2"></script>
-<script src="js/input.js?v=3.2"></script>
-<script src="js/render.js?v=3.2"></script>
-<script src="js/ui.js?v=3.2"></script>
-<script src="js/main.js?v=3.2"></script>
+<!-- settings -->
+<div id="settings" class="overlay hidden hud-touch">
+  <div class="card setCard">
+    <div class="setHead"><h3>⚙ SETTINGS</h3><button id="setClose" class="blue">✕ CLOSE</button></div>
+
+    <h4>GAMEPLAY</h4>
+    <div class="setRow"><span>Build mode</span>
+      <div id="setBuild" class="seg"><button data-v="classic">CLASSIC</button><button data-v="insta">INSTABUILD</button></div></div>
+    <p id="setBuildHint" class="setHint"></p>
+    <div class="setRow"><span>Minimap</span><button id="setMini" class="tog">ON</button></div>
+    <div class="setRow"><span>Auto select material<small>Out of the material you picked? It builds with one you have.</small></span><button id="setAutoMat" class="tog">ON</button></div>
+
+    <h4>LIFETIME STATS</h4>
+    <div id="statGrid"></div>
+
+    <div id="pcOnly">
+      <h4>PC</h4>
+      <div class="setRow"><span>Key binds</span><button id="setShowBinds" class="blue">SHOW KEY BINDS</button></div>
+      <div id="bindBox" class="hidden">
+        <p class="setHint">Click a key, then press the new key (Esc cancels).</p>
+        <div id="bindList"></div>
+        <button id="bindReset" class="yellow">↺ RESET KEY BINDS</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/config.js?v=3.3"></script>
+<script src="js/settings.js?v=3.3"></script>
+<script src="js/util.js?v=3.3"></script>
+<script src="js/build.js?v=3.3"></script>
+<script src="js/world.js?v=3.3"></script>
+<script src="js/fighter.js?v=3.3"></script>
+<script src="js/combat.js?v=3.3"></script>
+<script src="js/items.js?v=3.3"></script>
+<script src="js/ai.js?v=3.3"></script>
+<script src="js/squad.js?v=3.3"></script>
+<script src="js/match.js?v=3.3"></script>
+<script src="js/input.js?v=3.3"></script>
+<script src="js/render.js?v=3.3"></script>
+<script src="js/ui.js?v=3.3"></script>
+<script src="js/main.js?v=3.3"></script>
 </body>
 </html>

@@ -33,6 +33,8 @@ MF.AI = (() => {
       stuckT: 0, detourT: 0, detourDir: 1, breakIt: null, breakT: 0,
       buildCd: U.rand(1), peek: null, aimErr: 0, aimErrT: 0,
       huntPlayer: U.chance(0.55), lootUntil: null, dropAt: null, jumpAt: 0.5, burstT: 0, bursting: true,
+      skipLoot: new Set(), arriveT: 0,           // loot we gave up on (e.g. inventory full)
+      idleX: 0, idleY: 0, idleT: 0, wanderT: 0, wx: 0, wy: 0,
     };
   }
 
@@ -259,6 +261,30 @@ MF.AI = (() => {
     }
   }
 
+  // ---------- idle watchdog ----------
+  // If a bot hasn't moved or done anything for 4 seconds, walk in a random direction for a bit.
+  const IDLE_LIMIT = 4;
+  function idleWatch(bot, dt) {
+    const b = bot.brain;
+    if (b.wanderT > 0) {
+      b.wanderT -= dt;
+      if (moveTo(bot, b.wx, b.wy, dt)) b.wanderT = 0;
+      holdGun(bot);
+      b.idleX = bot.x; b.idleY = bot.y; b.idleT = 0;
+      return true;
+    }
+    const busy = bot.use || bot.openProg > 0 || bot.fireCd > 0 || bot.swingT > 0 || bot.reloadT > 0 ||
+                 b.mode === 'revive' || b.mode === 'reboot' || (bot.mate && bot.mate.reviveBy === bot && bot.mate.reviveProg > 0);
+    if (busy || U.dist(bot.x, bot.y, b.idleX, b.idleY) > 24) { b.idleX = bot.x; b.idleY = bot.y; b.idleT = 0; return false; }
+    b.idleT += dt;
+    if (b.idleT < IDLE_LIMIT) return false;
+    const a = U.rand(Math.PI * 2), d = U.rand(220, 420);
+    b.wx = U.clamp(bot.x + Math.cos(a) * d, 80, C.WORLD - 80); b.wy = U.clamp(bot.y + Math.sin(a) * d, 80, C.WORLD - 80);
+    b.wanderT = U.rand(1.5, 2.6); b.goal = null; b.think = 0;
+    b.idleT = 0;
+    return true;
+  }
+
   // ---------- duo ----------
   function squadThink(bot, t) {
     const b = bot.brain, m = bot.mate;
@@ -316,6 +342,7 @@ MF.AI = (() => {
     }
     const lim = Math.min(bd, 800);
     for (const l of MF.G.loot) {
+      if (bot.brain.skipLoot.has(l)) continue;
       const d = U.dist(bot.x, bot.y, l.x, l.y);
       if (d < lim && d < (best ? bd * 0.7 : 1e9)) {
         if (l.inst.type === 'weapon' && weaponCount(bot) >= 3 && weaponValue(l.inst) < 9) continue;
@@ -360,6 +387,7 @@ MF.AI = (() => {
     b.peek = updatePeek(bot, dt);
 
     if (b.breakIt && b.mode !== 'fight') { breakBlocker(bot, dt); return; }
+    if (idleWatch(bot, dt)) return;
 
     switch (b.mode) {
       case 'fight': fight(bot, dt); break;
@@ -388,7 +416,11 @@ MF.AI = (() => {
         const g = b.goal;
         if (!g || (g.chest && g.chest.opened) || (g.loot && !MF.G.loot.includes(g.loot))) { b.think = 0; break; }
         if (g.chest && U.dist(bot.x, bot.y, g.x, g.y) < 40) { bot.vx = bot.vy = 0; MF.Items.holdOpen(bot, true, dt); }
-        else moveTo(bot, g.x, g.y, dt);
+        else if (moveTo(bot, g.x, g.y, dt) || U.dist(bot.x, bot.y, g.x, g.y) < bot.r + 14) {
+          // standing on it but it didn't get picked up (full inventory etc.) → give up on it
+          b.arriveT += dt;
+          if (b.arriveT > 0.6) { if (g.loot) b.skipLoot.add(g.loot); b.goal = null; b.arriveT = 0; b.think = 0; }
+        } else b.arriveT = 0;
         break;
       }
       case 'harvest': {

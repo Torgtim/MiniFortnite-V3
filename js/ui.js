@@ -10,6 +10,7 @@ MF.UI = (() => {
   try { lastDuo = localStorage.getItem('mf3_duo') === '1'; } catch (e) {}
 
   function init() {
+    MF.Settings.initUI();
     mini = $('minimap'); miniCtx = mini.getContext('2d');
     mini.addEventListener('click', toggleMap);
     $('bigMap').addEventListener('click', toggleMap);
@@ -63,7 +64,16 @@ MF.UI = (() => {
   }
 
   // duo: true/false picks the mode, undefined = same mode as last time
+  // Lifetime stats: count each match once, when your run ends (or you leave it early)
+  function recordRun(won) {
+    const G = MF.G, P = G.player;
+    if (!P || G.recorded || G.phase === 'menu') return;
+    G.recorded = true;
+    MF.Settings.recordMatch({ won, duo: G.duo, kills: P.kills, place: won ? 1 : P.placement });
+  }
+
   function startGame(duo) {
+    recordRun(false);
     if (typeof duo === 'boolean') lastDuo = duo;
     try { localStorage.setItem('mf3_duo', lastDuo ? '1' : '0'); } catch (e) {}
     ['menu', 'deathScreen', 'specBar', 'winScreen', 'rebootInfo'].forEach(hide);
@@ -72,6 +82,7 @@ MF.UI = (() => {
     MF.Match.start({ duo: lastDuo });
   }
   function toMenu() {
+    recordRun(false);
     ['deathScreen', 'specBar', 'winScreen', 'rebootInfo', 'hud'].forEach(hide);
     MF.Input.releaseAll();
     MF.G.phase = 'menu';
@@ -94,6 +105,7 @@ MF.UI = (() => {
   function onLand() {}
   // Your run is over (solo death, or your whole duo is out)
   function onPlayerDeath(P) {
+    recordRun(false);
     MF.Input.releaseAll();
     $('deathPlace').textContent = '#' + P.placement;
     $('deathTitle').textContent = MF.G.duo ? 'TEAM ELIMINATED' : 'ELIMINATED';
@@ -116,6 +128,7 @@ MF.UI = (() => {
   }
   function onWinner(w, members = [w]) {
     const G = MF.G, youWon = members.includes(G.player);
+    if (youWon) recordRun(true); else recordRun(false);
     const names = members.map((f) => f.name).join(' & ');
     $('winTitle').textContent = youWon ? '#1 VICTORY ROYALE' : `${names.toUpperCase()} WON!`;
     const kills = members.reduce((n, f) => n + f.kills, 0);
@@ -226,7 +239,7 @@ MF.UI = (() => {
 
     // minimap at ~8 fps
     miniT -= dt;
-    if (miniT <= 0) { miniT = 0.12; drawMap(mini, false); if (bigMapOpen) drawMap($('bigMapCanvas'), true); }
+    if (miniT <= 0) { miniT = 0.12; if (MF.Settings.get('minimap')) drawMap(mini, false); if (bigMapOpen) drawMap($('bigMapCanvas'), true); }
   }
 
   function updateTeam(P) {

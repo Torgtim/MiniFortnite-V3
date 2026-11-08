@@ -23,6 +23,12 @@ A mobile-first 2D battle royale made by **Spakkraft**. The game is built around 
 - **Bot AI.** Bots have personalities (aggressive, cautious, builder). They loot, rotate with the storm and hunt you *and each other*. In a fight they pick the right gun for the range, strafe, wall up when they get shot, box up to heal, edit-peek out of their own walls and pickaxe through walls that block them.
 - **Storm.** It moves through 6 circles, and the damage goes up each time.
 - **Minimap.** Tap it to make it bigger.
+- **⚙ Settings** (saved in your browser):
+  - **Build mode:** Classic (tap to preview, tap again to build) or Instabuild (it builds the moment you tap).
+  - **Minimap** on/off.
+  - **Auto select material:** if you're out of the material you picked, it builds with one you have.
+  - **Lifetime stats:** Victory Royales (solo/duo), eliminations, matches and top 5s.
+  - **Key binds (PC only):** change any key, with a reset button.
 - **Spectating.** When you die you can choose PLAY AGAIN or SPECTATE (you'll be watching a bot 🤣).
 
 ## Controls
@@ -51,6 +57,7 @@ Plain JavaScript with no build step. Every file adds one module to the shared `M
 | `js/fighter.js` | Movement, inventory and damage, shared by the player and the bots |
 | `js/combat.js` | Guns, bullets, explosions, pickaxe and throwables |
 | `js/items.js` | Heals, shields, mobility items, launch pads, chests and pickups |
+| `js/settings.js` | Settings screen, lifetime stats and key binds (localStorage) |
 | `js/ai.js` | Bot brains (including duo: revive, reboot, regroup) |
 | `js/squad.js` | Duo mode: teams, knocked, revive, reboot cards and Reboot Vans |
 | `js/match.js` | Battle bus, gliding, storm, eliminations, victory and spectating |

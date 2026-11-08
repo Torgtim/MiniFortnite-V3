@@ -13,6 +13,7 @@ MF.Input = (() => {
   let moveStick = null, aimStick = null;
   let interactHeld = false, tapFireT = 0, pcRot = 0;
   let canvas;
+  const KB = (action) => MF.Settings.keyOf(action);     // key bound to an action (Settings → key binds)
 
   function init(cv) {
     canvas = cv;
@@ -22,7 +23,7 @@ MF.Input = (() => {
     window.addEventListener('pointercancel', onUp);
     cv.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('keydown', onKey);
-    window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; if (e.key.toLowerCase() === 'e') interactHeld = false; });
+    window.addEventListener('keyup', (e) => { const k = e.key.toLowerCase(); keys[k] = false; if (k === KB('interact')) interactHeld = false; });
     window.addEventListener('wheel', (e) => {
       const P = MF.G.player; if (!P || MF.G.phase === 'menu') return;
       const i = ((P.pickaxe ? 0 : P.active) + (e.deltaY > 0 ? 1 : 4)) % 5;
@@ -100,22 +101,26 @@ MF.Input = (() => {
   function onKey(e) {
     const k = e.key.toLowerCase();
     keys[k] = true;
-    if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) document.body.classList.add('pc');
+    const acts = MF.Settings.actionsFor(k);
+    const has = (a) => acts.includes(a);
+    if (has('up') || has('down') || has('left') || has('right') || k.startsWith('arrow')) document.body.classList.add('pc');
     const G = MF.G, P = G.player;
     if (G.phase === 'menu' || !P) return;
-    if (k === ' ') { e.preventDefault(); if (P.state === 'bus') MF.Match.jump(P); }
-    if (k === 'm') MF.UI.toggleMap();
+    if (k === ' ') e.preventDefault();
+    if (has('jump') && P.state === 'bus') MF.Match.jump(P);
+    if (has('map')) MF.UI.toggleMap();
     if (!P.alive) return;
-    if (k === 'e') interactHeld = true;
+    if (has('interact')) interactHeld = true;
     if (P.down) return;
-    if (k >= '1' && k <= '5') { MF.F.selectSlot(P, +k - 1); setMode('fight'); }
-    if (k === 'f') { MF.F.selectPickaxe(P); setMode('fight'); }
-    if (k === 'q') setMode(G.mode === 'build' ? 'fight' : 'build');
-    if (k === 'g') setMode(G.mode === 'edit' ? 'fight' : 'edit');
-    if (k === 'r') { if (G.mode === 'build') rotate(); else MF.Combat.startReload(P); }
-    if (k === 'z') setMat('wood');
-    if (k === 'x') setMat('brick');
-    if (k === 'c') setMat('metal');
+    for (let i = 1; i <= 5; i++) if (has('slot' + i)) { MF.F.selectSlot(P, i - 1); setMode('fight'); }
+    if (has('pickaxe')) { MF.F.selectPickaxe(P); setMode('fight'); }
+    if (has('build')) setMode(G.mode === 'build' ? 'fight' : 'build');
+    if (has('edit')) setMode(G.mode === 'edit' ? 'fight' : 'edit');
+    if (G.mode === 'build' && has('rotate')) rotate();
+    else if (has('reload')) MF.Combat.startReload(P);
+    if (has('wood')) setMat('wood');
+    if (has('brick')) setMat('brick');
+    if (has('metal')) setMat('metal');
   }
 
   // ---------- modes / building ----------
@@ -130,6 +135,7 @@ MF.Input = (() => {
   function buildTap(wx, wy) {
     const e = MF.Build.edgeFromPoint(wx, wy);
     const g = MF.G.ghost;
+    if (MF.Settings.get('buildMode') === 'insta') { MF.G.ghost = e; placeGhost(); return; }   // Instabuild: one tap
     if (g && g.k === e.k && g.cx === e.cx && g.cy === e.cy) { placeGhost(); return; }
     MF.G.ghost = e;
   }
@@ -147,16 +153,24 @@ MF.Input = (() => {
     const c = MF.Build.edgeCenter(g);
     if (U.dist(P.x, P.y, c.x, c.y) > C.BUILD_RANGE) return 'TOO FAR';
     if (!MF.Build.canPlace(g)) return 'BLOCKED';
-    if (P.mats[P.buildMat] < C.WALL_COST) return 'NO ' + MF.MATERIALS[P.buildMat].name.toUpperCase();
+    if (!matFor(P)) return 'NO ' + MF.MATERIALS[P.buildMat].name.toUpperCase();
     return null;
+  }
+  // Material that will actually be used: the chosen one, or (auto material) another one you have enough of
+  function matFor(P) {
+    if (P.mats[P.buildMat] >= C.WALL_COST) return P.buildMat;
+    if (!MF.Settings.get('autoMat')) return null;
+    return MF.MAT_ORDER.find((m) => P.mats[m] >= C.WALL_COST) || null;
   }
   function placeGhost() {
     const P = MF.G.player, g = MF.G.ghost;
     if (!isPlaying() || P.state !== 'ground') return false;
     const why = ghostProblem(g);
     if (why) { if (why !== 'none') MF.UI.toast(why); return false; }
-    MF.Build.place(g, P.buildMat, P.id);
-    P.mats[P.buildMat] -= C.WALL_COST;
+    const mat = matFor(P);
+    if (mat !== P.buildMat) { P.buildMat = mat; MF.UI.refreshMode(); MF.UI.toast('SWITCHED TO ' + MF.MATERIALS[mat].name.toUpperCase()); }
+    MF.Build.place(g, mat, P.id);
+    P.mats[mat] -= C.WALL_COST;
     return true;
   }
   function editAt(wx, wy) {
@@ -176,10 +190,10 @@ MF.Input = (() => {
       const m = Math.min(1, d / STICK_R);
       if (d > 4) { x = dx / d * m; y = dy / d * m; }
     }
-    if (keys.w || keys.arrowup) y -= 1;
-    if (keys.s || keys.arrowdown) y += 1;
-    if (keys.a || keys.arrowleft) x -= 1;
-    if (keys.d || keys.arrowright) x += 1;
+    if (keys[KB('up')] || keys.arrowup) y -= 1;
+    if (keys[KB('down')] || keys.arrowdown) y += 1;
+    if (keys[KB('left')] || keys.arrowleft) x -= 1;
+    if (keys[KB('right')] || keys.arrowright) x += 1;
     const l = Math.hypot(x, y);
     if (l > 1) { x /= l; y /= l; }
     return { x, y };
